@@ -1,0 +1,271 @@
+# PasaBuy 🛍️
+
+> Trustless cross-border escrow for informal pasabuy transactions on Stellar.
+
+---
+
+## What is PasaBuy?
+
+**Pasabuy** is a deeply Filipino practice — asking a friend, relative, or stranger abroad to buy something on your behalf and bring it home. It's informal, it's common, and it's risky. Money changes hands with no guarantees, no recourse, and no paper trail.
+
+PasaBuy fixes that. It's a Soroban-powered escrow dApp that locks a buyer's USDC when they post a request, assigns an agent abroad to fulfill it, and only releases payment when the buyer confirms delivery. Disputes are handled on-chain with an admin resolution path.
+
+No middlemen. No trust required. Just code.
+
+---
+
+## The Problem
+
+A Filipino buyer wants a limited item — Nike shoes from Japan, a skincare brand from Korea, a gadget not sold locally. They find an agent on Facebook or Reddit willing to buy it abroad for a service fee. But there's no trustless way to send money:
+
+- The buyer sends money upfront and hopes for the best
+- The agent ships first and hopes the buyer pays
+- Either side can ghost with no recourse
+
+This informal economy is worth millions annually among OFWs and Filipino online shoppers — and it runs entirely on blind trust.
+
+---
+
+## The Solution
+
+PasaBuy puts the escrow on Stellar.
+
+1. **Buyer posts an order** — USDC is locked in a Soroban smart contract
+2. **Agent accepts** — commits to buying and shipping the item
+3. **Agent marks shipped** — buyer is notified
+4. **Buyer confirms delivery** — USDC is released to the agent
+5. **Dispute?** — funds freeze, admin resolves on-chain
+
+Stellar's near-zero fees and USDC stability make this practical for everyday ₱500–₱5,000 transactions that would be eaten alive by Ethereum gas costs.
+
+---
+
+## Stellar Features Used
+
+| Feature | Purpose |
+|---|---|
+| Soroban smart contracts | Escrow state machine, dispute logic |
+| USDC transfers | Stable cross-border payment currency |
+| Trustlines | Buyer and agent establish USDC trustlines |
+| XLM | Transaction fees |
+
+---
+
+## Contract Functions
+
+| Function | Description |
+|---|---|
+| `initialize(admin)` | Set contract admin for dispute resolution |
+| `create_order(...)` | Buyer locks USDC, creates order |
+| `accept_order(agent, order_id)` | Agent commits to fulfilling the order |
+| `mark_shipped(agent, order_id)` | Agent marks item as shipped |
+| `confirm_delivery(buyer, order_id)` | Buyer confirms receipt, releases USDC |
+| `dispute(buyer, order_id)` | Buyer freezes funds pending resolution |
+| `resolve_dispute(admin, order_id, refund_buyer)` | Admin sends funds to buyer or agent |
+| `get_order(order_id)` | Read order state |
+| `order_count()` | Total orders created |
+
+---
+
+## Order State Machine
+
+```
+Open → Accepted → Shipped → Completed
+                          ↘ Disputed → Resolved
+```
+
+---
+
+## Prerequisites
+
+- [Rust](https://rustup.rs/) with Wasm target:
+  ```bash
+  rustup target add wasm32-unknown-unknown
+  ```
+- Stellar CLI v26+:
+  ```bash
+  cargo install --locked stellar-cli --features opt
+  ```
+
+---
+
+## Build
+
+```bash
+stellar contract build
+```
+
+Output: `target/wasm32-unknown-unknown/release/pasabuy.wasm`
+
+---
+
+## Test
+
+```bash
+cargo test
+```
+
+Expected output:
+```
+running 5 tests
+test test::tests::test_full_order_lifecycle ... ok
+test test::tests::test_cannot_accept_already_accepted_order - should panic ... ok
+test test::tests::test_storage_state_after_create_order ... ok
+test test::tests::test_buyer_can_dispute_after_shipment ... ok
+test test::tests::test_admin_resolves_dispute_with_refund ... ok
+test result: ok. 5 passed; 0 failed
+```
+
+---
+
+## Deploy to Testnet
+
+**Generate and fund a key:**
+```bash
+stellar keys generate pasabuy-deployer --network testnet
+stellar keys address pasabuy-deployer
+```
+
+**Deploy:**
+```bash
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/pasabuy.wasm \
+  --source-account pasabuy-deployer \
+  --network testnet
+```
+
+Save the returned `CONTRACT_ID`.
+
+---
+
+## Sample CLI Invocations
+
+**Initialize:**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- initialize \
+  --admin $(stellar keys address pasabuy-deployer)
+```
+
+**Buyer creates an order (100 USDC):**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- create_order \
+  --buyer <BUYER_ADDRESS> \
+  --usdc_token <USDC_CONTRACT_ADDRESS> \
+  --amount 1000000000 \
+  --service_fee 100000000 \
+  --item_description NikeAJ1
+```
+
+**Agent accepts:**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- accept_order \
+  --agent <AGENT_ADDRESS> \
+  --order_id 1
+```
+
+**Agent marks shipped:**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- mark_shipped \
+  --agent <AGENT_ADDRESS> \
+  --order_id 1
+```
+
+**Buyer confirms delivery:**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- confirm_delivery \
+  --buyer <BUYER_ADDRESS> \
+  --order_id 1
+```
+
+**Buyer raises a dispute:**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- dispute \
+  --buyer <BUYER_ADDRESS> \
+  --order_id 1
+```
+
+**Admin resolves dispute (refund buyer):**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source-account pasabuy-deployer \
+  --network testnet \
+  -- resolve_dispute \
+  --admin <ADMIN_ADDRESS> \
+  --order_id 1 \
+  --refund_buyer true
+```
+
+**Read order state:**
+```bash
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --network testnet \
+  -- get_order \
+  --order_id 1
+```
+
+---
+
+## Project Structure
+
+```
+PasaBuy/
+├── contract/
+│   ├── src/
+│   │   ├── lib.rs        # Soroban smart contract
+│   │   └── test.rs       # 5 contract tests
+│   └── Cargo.toml
+└── README.md
+```
+
+---
+
+## Vision
+
+PasaBuy makes the existing informal pasabuy economy — already worth millions annually among OFWs and Filipino shoppers — trustless, auditable, and accessible to anyone with a Stellar wallet. Every pasabuy transaction that moves on-chain is a step toward a fairer, verifiable cross-border commerce layer for Southeast Asia.
+
+---
+
+## Built With
+
+- [Stellar](https://stellar.org/)
+- [Soroban](https://soroban.stellar.org/)
+- [soroban-sdk](https://docs.rs/soroban-sdk)
+- [Rust](https://www.rust-lang.org/)
+
+---
+
+## Region
+
+🇵🇭 Philippines — Southeast Asia
+
+---
+
+## License
+
+MIT © 2025 PasaBuy
