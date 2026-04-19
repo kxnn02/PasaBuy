@@ -12,6 +12,7 @@ pub enum DataKey {
     Order(u64),    // keyed by order_id
     OrderCount,    // auto-increment counter
     Admin,         // contract admin for dispute resolution
+    TokenId,       // token contract address (native XLM)
 }
 
 // ─── Order state machine ──────────────────────────────────────────────────────
@@ -34,11 +35,25 @@ pub struct Order {
     pub id: u64,
     pub buyer: Address,
     pub agent: Option<Address>,
-    pub usdc_token: Address,    // USDC contract address on Stellar testnet
-    pub amount: i128,           // total USDC locked (item cost + service fee)
-    pub service_fee: i128,      // fee going to agent on completion
+    pub amount: i128,           // total XLM locked (in stroops)
+    pub service_fee: i128,      // fee going to agent on completion (in stroops)
     pub status: OrderStatus,
-    pub item_description: Symbol, // short product description (≤9 chars for Symbol)
+    pub item_description: Symbol,
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Retrieves the stored token contract address.
+fn get_token_id(env: &Env) -> Address {
+    env.storage().instance()
+        .get(&DataKey::TokenId)
+        .expect("token not set — call initialize first")
+}
+
+/// Returns a token::Client for the configured token (for transfers).
+fn token_client(env: &Env) -> token::Client<'_> {
+    let token_id = get_token_id(env);
+    token::Client::new(env, &token_id)
 }
 
 // ─── Contract ─────────────────────────────────────────────────────────────────
@@ -49,49 +64,46 @@ pub struct PasaBuyContract;
 #[contractimpl]
 impl PasaBuyContract {
 
-    /// Initialize the contract with an admin address.
-    /// Admin is used only for dispute resolution.
-    pub fn initialize(env: Env, admin: Address) {
+    /// Initialize the contract with an admin address and the token contract ID.
+    /// `token_id` should be the native XLM Stellar Asset Contract address.
+    pub fn initialize(env: Env, admin: Address, token_id: Address) {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::TokenId, &token_id);
         env.storage().instance().set(&DataKey::OrderCount, &0u64);
     }
 
-    /// Buyer creates a new order by locking USDC into the contract.
-    /// `amount` = full USDC to lock (item + service fee combined).
+    /// Buyer creates a new order by locking XLM into the contract.
+    /// `amount` = total XLM to lock in stroops (item + service fee combined).
     /// `service_fee` = portion released to agent on confirm_delivery.
     /// Returns the new order ID.
     pub fn create_order(
         env: Env,
         buyer: Address,
-        usdc_token: Address,
         amount: i128,
         service_fee: i128,
         item_description: Symbol,
     ) -> u64 {
-        // Buyer must authorize this call
         buyer.require_auth();
 
-        // Service fee must be less than total amount
         if service_fee >= amount || amount <= 0 {
             panic!("invalid amount or service fee");
         }
 
-        // Transfer USDC from buyer into this contract (escrow lock)
-        let token_client = token::Client::new(&env, &usdc_token);
-        token_client.transfer(&buyer, &env.current_contract_address(), &amount);
+        // Transfer XLM from buyer into this contract (escrow lock)
+        let tc = token_client(&env);
+        tc.transfer(&buyer, &env.current_contract_address(), &amount);
 
         // Increment order counter
         let count: u64 = env.storage().instance().get(&DataKey::OrderCount).unwrap_or(0);
         let order_id = count + 1;
         env.storage().instance().set(&DataKey::OrderCount, &order_id);
 
-        // Save order to storage
+        // Save order
         let order = Order {
             id: order_id,
             buyer: buyer.clone(),
             agent: None,
-            usdc_token,
             amount,
             service_fee,
             status: OrderStatus::Open,
@@ -99,7 +111,6 @@ impl PasaBuyContract {
         };
         env.storage().instance().set(&DataKey::Order(order_id), &order);
 
-        // Emit event for indexers / frontend
         env.events().publish(
             (symbol_short!("created"), buyer),
             order_id,
@@ -108,7 +119,7 @@ impl PasaBuyContract {
         order_id
     }
 
-    /// Agent accepts an open order, committing to fulfill it.
+    /// Agent accepts an open order.
     pub fn accept_order(env: Env, agent: Address, order_id: u64) {
         agent.require_auth();
 
@@ -151,8 +162,7 @@ impl PasaBuyContract {
         env.storage().instance().set(&DataKey::Order(order_id), &order);
     }
 
-    /// Buyer confirms delivery. Releases USDC to the agent.
-    /// This is the core MVP transaction that proves escrow works end-to-end.
+    /// Buyer confirms delivery. Releases XLM to the agent.
     pub fn confirm_delivery(env: Env, buyer: Address, order_id: u64) {
         buyer.require_auth();
 
@@ -171,8 +181,8 @@ impl PasaBuyContract {
         let agent = order.agent.clone().expect("no agent assigned");
 
         // Release full locked amount to agent
-        let token_client = token::Client::new(&env, &order.usdc_token);
-        token_client.transfer(&env.current_contract_address(), &agent, &order.amount);
+        let tc = token_client(&env);
+        tc.transfer(&env.current_contract_address(), &agent, &order.amount);
 
         order.status = OrderStatus::Completed;
         env.storage().instance().set(&DataKey::Order(order_id), &order);
@@ -183,7 +193,7 @@ impl PasaBuyContract {
         );
     }
 
-    /// Buyer raises a dispute — freezes funds in the contract.
+    /// Buyer raises a dispute — freezes funds.
     pub fn dispute(env: Env, buyer: Address, order_id: u64) {
         buyer.require_auth();
 
@@ -192,7 +202,6 @@ impl PasaBuyContract {
             .get(&DataKey::Order(order_id))
             .expect("order not found");
 
-        // Can dispute once shipped (or even accepted, agent hasn't shipped yet)
         if order.status != OrderStatus::Shipped && order.status != OrderStatus::Accepted {
             panic!("cannot dispute in current state");
         }
@@ -209,8 +218,7 @@ impl PasaBuyContract {
         );
     }
 
-    /// Admin resolves a dispute by sending funds to either buyer (refund) or agent (pay).
-    /// `refund_buyer`: true = refund buyer; false = pay agent.
+    /// Admin resolves a dispute.
     pub fn resolve_dispute(
         env: Env,
         admin: Address,
@@ -236,19 +244,17 @@ impl PasaBuyContract {
             panic!("order is not in disputed state");
         }
 
-        let token_client = token::Client::new(&env, &order.usdc_token);
+        let tc = token_client(&env);
 
         if refund_buyer {
-            // Return locked funds to buyer
-            token_client.transfer(
+            tc.transfer(
                 &env.current_contract_address(),
                 &order.buyer,
                 &order.amount,
             );
         } else {
-            // Pay agent
             let agent = order.agent.clone().expect("no agent assigned");
-            token_client.transfer(
+            tc.transfer(
                 &env.current_contract_address(),
                 &agent,
                 &order.amount,

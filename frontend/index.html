@@ -1,195 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PasaBuy — Trustless Cross-Border Escrow</title>
-  <link rel="stylesheet" href="style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
-  <!-- Stellar SDK (UMD) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/12.2.0/stellar-sdk.min.js"></script>
-  <!-- Freighter API (UMD) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/freighter-api/2.1.0/index.min.js"></script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PasaBuy — Trustless Escrow on Stellar</title>
+  <meta name="description" content="Lock XLM in escrow. Pay only when your item arrives. Trustless cross-border pasabuy on Stellar."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/src/style.css"/>
 </head>
 <body>
 
-  <!-- TOAST -->
-  <div class="toast" id="toast"></div>
-
-  <!-- NAVBAR -->
-  <nav class="nav">
-    <div class="nav-inner">
-      <div class="logo">Pasa<span>Buy</span></div>
-      <div class="nav-right">
-        <span class="badge-testnet">Testnet</span>
-        <button class="btn btn-outline" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
-      </div>
+  <!-- ═══ HEADER ═══ -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">◎</span>
+      <span class="logo-text">Pasa<em>Buy</em></span>
+      <span class="badge badge-testnet">TESTNET</span>
     </div>
-  </nav>
+    <nav class="nav">
+      <button class="nav-tab active" data-tab="buyer">🛒 <span>Buyer</span></button>
+      <button class="nav-tab" data-tab="agent">🚀 <span>Agent</span></button>
+    </nav>
+    <div class="header-right">
+      <button class="btn btn-outline btn-sm" id="config-btn">⚙</button>
+      <button class="btn btn-primary" id="wallet-btn">Connect Wallet</button>
+    </div>
+  </header>
 
-  <!-- WALLET BAR -->
-  <div class="wallet-bar" id="walletBar">
-    <div class="wallet-dot"></div>
-    <span id="walletAddr">GD3X...K7PQ connected</span>
-    <span class="wallet-balance">12.50 USDC available</span>
+  <!-- ═══ STATUS BAR ═══ -->
+  <div class="status-bar">
+    <span><span class="dot" id="contract-dot"></span> Contract: <span id="contract-display">Not set</span></span>
+    <span><span class="dot" id="wallet-dot"></span> Wallet: <span id="wallet-display">Disconnected</span></span>
+    <span><span class="dot dot-active"></span> Network: Testnet</span>
   </div>
 
-  <!-- MAIN -->
-  <main class="main">
-
-    <!-- TABS -->
-    <div class="tabs">
-      <button class="tab active" data-tab="orders" onclick="switchTab('orders', this)">My Orders</button>
-      <button class="tab" data-tab="create" onclick="switchTab('create', this)">Post Order</button>
-      <button class="tab" data-tab="agent" onclick="switchTab('agent', this)">Agent View</button>
-      <button class="tab" data-tab="about" onclick="switchTab('about', this)">How It Works</button>
+  <!-- ═══ CONFIG DRAWER ═══ -->
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <div class="drawer" id="config-drawer">
+    <div class="drawer-header">
+      <h3>Settings</h3>
+      <button class="btn-close" id="config-close">✕</button>
     </div>
+    <div class="drawer-body">
+      <label for="config-contract">Contract ID</label>
+      <input type="text" id="config-contract" placeholder="C..."/>
+      <label for="config-rpc">RPC URL</label>
+      <input type="text" id="config-rpc" value="https://soroban-testnet.stellar.org"/>
+      <button class="btn btn-primary" id="config-save" style="margin-top:16px;width:100%">Save</button>
+    </div>
+  </div>
 
-    <!-- SECTION: MY ORDERS -->
-    <section class="section active" id="sec-orders">
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-label">Total Orders</div>
-          <div class="stat-val" id="statTotal">3</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">In Escrow</div>
-          <div class="stat-val" id="statEscrow">$225</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Completed</div>
-          <div class="stat-val" id="statDone">1</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Disputed</div>
-          <div class="stat-val" id="statDisp">0</div>
-        </div>
+  <!-- ═══ BUYER TAB ═══ -->
+  <main>
+    <section class="tab-panel active" id="tab-buyer">
+      <div class="hero">
+        <h1>Post a <span class="accent">Pasabuy</span> Order</h1>
+        <p>Lock XLM in escrow. Pay only when your item arrives.</p>
       </div>
-      <div id="orderList"></div>
-    </section>
 
-    <!-- SECTION: CREATE ORDER -->
-    <section class="section" id="sec-create">
-      <div class="card form-card">
-        <div class="card-title">Post a New Order</div>
-        <div class="card-subtitle">Your USDC will be locked in a Soroban smart contract until delivery is confirmed.</div>
-
-        <div class="form-grid">
-          <div class="field full">
-            <label for="f-item">Item Description</label>
-            <input type="text" id="f-item" placeholder="e.g. Nike Air Jordan 1 Low from Japan" />
-          </div>
+      <div class="grid-2">
+        <!-- Create Order -->
+        <div class="card">
+          <div class="card-tag">NEW ORDER</div>
+          <h2>What do you need?</h2>
           <div class="field">
-            <label for="f-amount">Item Cost (USDC)</label>
-            <input type="number" id="f-amount" placeholder="100.00" min="1" />
+            <label for="item-name">Item Name</label>
+            <input type="text" id="item-name" placeholder="e.g. NikeAJ1" maxlength="9"/>
+            <small>Max 9 characters (stored on-chain as Symbol)</small>
           </div>
-          <div class="field">
-            <label for="f-fee">Service Fee (USDC)</label>
-            <input type="number" id="f-fee" placeholder="10.00" min="1" />
+          <div class="field-row">
+            <div class="field">
+              <label for="order-amount">Total Amount (XLM)</label>
+              <div class="input-prefix"><span>✦</span><input type="number" id="order-amount" placeholder="100" min="1" step="any"/></div>
+              <small>Item cost + agent fee</small>
+            </div>
+            <div class="field">
+              <label for="order-fee">Agent Fee (XLM)</label>
+              <div class="input-prefix"><span>✦</span><input type="number" id="order-fee" placeholder="10" min="0" step="any"/></div>
+              <small>Must be less than total</small>
+            </div>
           </div>
-          <div class="field">
-            <label for="f-from">Ship From</label>
-            <input type="text" id="f-from" placeholder="Japan" />
+          <div class="fee-preview" id="fee-preview" style="display:none">
+            <div class="fee-row"><span>Item cost</span><span id="preview-item">0</span></div>
+            <div class="fee-row"><span>Agent fee</span><span id="preview-fee">0</span></div>
+            <div class="fee-row fee-total"><span>Total locked</span><span id="preview-total">0</span></div>
           </div>
-          <div class="field">
-            <label for="f-to">Deliver To</label>
-            <input type="text" id="f-to" placeholder="Manila, PH" />
-          </div>
-          <div class="field full">
-            <label for="f-notes">Notes for Agent</label>
-            <textarea id="f-notes" placeholder="Size, color, store preference, special instructions..."></textarea>
-          </div>
+          <button class="btn btn-primary btn-block" id="create-btn">🔒 Lock Funds & Post Order</button>
         </div>
 
-        <div class="form-footer">
-          <div class="escrow-preview">
-            Total locked in escrow: <strong id="escrowTotal">—</strong>
+        <!-- My Orders -->
+        <div class="card">
+          <div class="card-tag">MY ORDERS</div>
+          <div class="card-header-row">
+            <h2>Active & Past</h2>
+            <button class="btn btn-ghost btn-sm" id="buyer-refresh">↻ Refresh</button>
           </div>
-          <button class="btn btn-primary" id="createBtn" onclick="createOrder()">Lock USDC &amp; Post Order</button>
+          <div id="buyer-orders" class="orders-list">
+            <div class="empty">No orders yet.</div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- SECTION: AGENT VIEW -->
-    <section class="section" id="sec-agent">
-      <div class="section-intro">
-        <div class="section-intro-title">Open Orders</div>
-        <div class="section-intro-sub">Browse orders from buyers looking for an abroad agent. Accept one to earn the service fee.</div>
-      </div>
-      <div id="agentList"></div>
-    </section>
-
-    <!-- SECTION: HOW IT WORKS -->
-    <section class="section" id="sec-about">
-      <div class="about-hero">
-        <div class="about-tag">Trustless Escrow on Stellar</div>
-        <h1 class="about-title">No trust required.<br>Just code.</h1>
-        <p class="about-desc">PasaBuy puts the pasabuy transaction on-chain. USDC is locked at posting, released only at confirmed delivery — with an on-chain dispute path if things go wrong.</p>
+    <!-- ═══ AGENT TAB ═══ -->
+    <section class="tab-panel" id="tab-agent">
+      <div class="hero">
+        <h1>Browse <span class="accent">Open</span> Orders</h1>
+        <p>Accept an order, buy the item abroad, earn your fee.</p>
       </div>
 
-      <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-num">01</div>
-          <div class="step-title">Buyer posts an order</div>
-          <div class="step-desc">USDC is locked into a Soroban smart contract. Nobody can touch it until delivery is confirmed.</div>
+      <!-- Open Orders (full width) -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-tag">AVAILABLE</div>
+        <div class="card-header-row">
+          <h2>Open Orders</h2>
+          <button class="btn btn-ghost btn-sm" id="open-refresh">↻ Refresh</button>
         </div>
-        <div class="step-card">
-          <div class="step-num">02</div>
-          <div class="step-title">Agent accepts</div>
-          <div class="step-desc">An abroad agent commits to buying and shipping the item. Their identity is recorded on-chain.</div>
-        </div>
-        <div class="step-card">
-          <div class="step-num">03</div>
-          <div class="step-title">Agent marks shipped</div>
-          <div class="step-desc">Item is on its way. A shipping record is stored on-chain. The buyer is notified.</div>
-        </div>
-        <div class="step-card">
-          <div class="step-num">04</div>
-          <div class="step-title">Buyer confirms delivery</div>
-          <div class="step-desc">USDC is released to the agent. Transaction complete — both sides protected the whole time.</div>
+        <div id="open-orders" class="orders-list">
+          <div class="empty">Loading...</div>
         </div>
       </div>
 
-      <div class="state-machine-card">
-        <div class="sm-title">Contract State Machine</div>
-        <div class="sm-flow">
-          <span class="sm-state open">Open</span>
-          <span class="sm-arrow">→</span>
-          <span class="sm-state accepted">Accepted</span>
-          <span class="sm-arrow">→</span>
-          <span class="sm-state shipped">Shipped</span>
-          <span class="sm-arrow">→</span>
-          <span class="sm-state completed">Completed</span>
+      <div class="grid-2">
+        <!-- Lookup -->
+        <div class="card">
+          <div class="card-tag">FIND ORDER</div>
+          <h2>Look up by ID</h2>
+          <div class="field">
+            <label for="lookup-id">Order ID</label>
+            <div class="input-suffix">
+              <input type="number" id="lookup-id" placeholder="e.g. 1" min="1"/>
+              <button class="btn btn-secondary btn-sm" id="lookup-btn">Search</button>
+            </div>
+          </div>
+          <div id="lookup-result"></div>
         </div>
-        <div class="sm-flow sm-alt">
-          <span class="sm-blank">Shipped can also go to →</span>
-          <span class="sm-state disputed">Disputed</span>
-          <span class="sm-arrow">→</span>
-          <span class="sm-state resolved">Resolved</span>
-        </div>
-      </div>
 
-      <div class="contract-table-wrap">
-        <div class="sm-title" style="margin-bottom: 16px;">Contract Functions</div>
-        <table class="contract-table">
-          <thead>
-            <tr><th>Function</th><th>Description</th></tr>
-          </thead>
-          <tbody>
-            <tr><td><code>initialize(admin)</code></td><td>Set contract admin for dispute resolution</td></tr>
-            <tr><td><code>create_order(...)</code></td><td>Buyer locks USDC, creates order</td></tr>
-            <tr><td><code>accept_order(agent, id)</code></td><td>Agent commits to fulfilling the order</td></tr>
-            <tr><td><code>mark_shipped(agent, id)</code></td><td>Agent marks item as shipped</td></tr>
-            <tr><td><code>confirm_delivery(buyer, id)</code></td><td>Buyer confirms receipt, releases USDC</td></tr>
-            <tr><td><code>dispute(buyer, id)</code></td><td>Buyer freezes funds pending resolution</td></tr>
-            <tr><td><code>resolve_dispute(admin, id, refund)</code></td><td>Admin sends funds to buyer or agent</td></tr>
-          </tbody>
-        </table>
+        <!-- My Assignments -->
+        <div class="card">
+          <div class="card-tag">MY JOBS</div>
+          <div class="card-header-row">
+            <h2>Orders I'm handling</h2>
+            <button class="btn btn-ghost btn-sm" id="agent-refresh">↻ Refresh</button>
+          </div>
+          <div id="agent-orders" class="orders-list">
+            <div class="empty">No assignments yet.</div>
+          </div>
+        </div>
       </div>
     </section>
-
   </main>
 
-  <script src="app.js"></script>
+  <!-- ═══ TOAST CONTAINER ═══ -->
+  <div id="toasts"></div>
+
+  <!-- ═══ CONFIRM MODAL ═══ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-icon" id="modal-icon">⚠️</div>
+      <h3 id="modal-title">Confirm</h3>
+      <p id="modal-body">Are you sure?</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

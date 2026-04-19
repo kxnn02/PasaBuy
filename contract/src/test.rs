@@ -14,49 +14,51 @@ mod tests {
         let buyer = Address::generate(&env);
         let agent = Address::generate(&env);
 
-        let usdc_id = env.register_stellar_asset_contract_v2(admin.clone());
-        let usdc_address = usdc_id.address();
+        // Register a Stellar Asset Contract (acts as our native XLM mock)
+        let sac = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_address = sac.address();
 
         let contract_id = env.register(PasaBuyContract, ());
         let client = PasaBuyContractClient::new(&env, &contract_id);
 
-        client.initialize(&admin);
+        // Initialize with admin AND the token contract address
+        client.initialize(&admin, &token_address);
 
-        let usdc_client = token::StellarAssetClient::new(&env, &usdc_address);
-        usdc_client.mint(&buyer, &1000_0000000i128);
+        // Mint tokens to the buyer so they can lock funds
+        let sac_client = token::StellarAssetClient::new(&env, &token_address);
+        sac_client.mint(&buyer, &1000_0000000i128);
 
-        (env, contract_id, usdc_address, admin, buyer, agent)
+        (env, contract_id, token_address, admin, buyer, agent)
     }
 
     // ─── Test 1: Happy path ──────────────────────────────────────────────────
     // Full end-to-end: create → accept → ship → confirm
-    // Verifies buyer's USDC is locked, then released to agent on confirm.
+    // Verifies buyer's XLM is locked, then released to agent on confirm.
 
     #[test]
     fn test_full_order_lifecycle() {
-        let (env, contract_id, usdc_address, _admin, buyer, agent) = setup();
+        let (env, contract_id, token_address, _admin, buyer, agent) = setup();
         let client = PasaBuyContractClient::new(&env, &contract_id);
-        let usdc_token = token::Client::new(&env, &usdc_address);
+        let xlm_token = token::Client::new(&env, &token_address);
 
         let amount: i128 = 100_0000000;
         let service_fee: i128 = 10_0000000;
 
         let order_id = client.create_order(
             &buyer,
-            &usdc_address,
             &amount,
             &service_fee,
             &symbol_short!("NikeAJ1"),
         );
 
-        assert_eq!(usdc_token.balance(&buyer), 900_0000000);
+        assert_eq!(xlm_token.balance(&buyer), 900_0000000);
 
         client.accept_order(&agent, &order_id);
         client.mark_shipped(&agent, &order_id);
 
-        let agent_balance_before = usdc_token.balance(&agent);
+        let agent_balance_before = xlm_token.balance(&agent);
         client.confirm_delivery(&buyer, &order_id);
-        let agent_balance_after = usdc_token.balance(&agent);
+        let agent_balance_after = xlm_token.balance(&agent);
 
         assert_eq!(agent_balance_after - agent_balance_before, amount);
 
@@ -70,12 +72,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "order is not open")]
     fn test_cannot_accept_already_accepted_order() {
-        let (env, contract_id, usdc_address, _admin, buyer, agent) = setup();
+        let (env, contract_id, _token_address, _admin, buyer, agent) = setup();
         let client = PasaBuyContractClient::new(&env, &contract_id);
 
         let order_id = client.create_order(
             &buyer,
-            &usdc_address,
             &100_0000000,
             &10_0000000,
             &symbol_short!("item"),
@@ -92,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_storage_state_after_create_order() {
-        let (env, contract_id, usdc_address, _admin, buyer, _agent) = setup();
+        let (env, contract_id, _token_address, _admin, buyer, _agent) = setup();
         let client = PasaBuyContractClient::new(&env, &contract_id);
 
         let amount: i128 = 50_0000000;
@@ -100,7 +101,6 @@ mod tests {
 
         let order_id = client.create_order(
             &buyer,
-            &usdc_address,
             &amount,
             &service_fee,
             &symbol_short!("YesStyle"),
@@ -121,15 +121,14 @@ mod tests {
 
     #[test]
     fn test_buyer_can_dispute_after_shipment() {
-        let (env, contract_id, usdc_address, _admin, buyer, agent) = setup();
+        let (env, contract_id, token_address, _admin, buyer, agent) = setup();
         let client = PasaBuyContractClient::new(&env, &contract_id);
-        let usdc_token = token::Client::new(&env, &usdc_address);
+        let xlm_token = token::Client::new(&env, &token_address);
 
         let amount: i128 = 80_0000000;
 
         let order_id = client.create_order(
             &buyer,
-            &usdc_address,
             &amount,
             &8_0000000,
             &symbol_short!("AirMax"),
@@ -146,25 +145,24 @@ mod tests {
         assert_eq!(order.status, OrderStatus::Disputed);
 
         // Funds must still be locked in contract — neither buyer nor agent received them
-        assert_eq!(usdc_token.balance(&buyer), 920_0000000); // 1000 - 80
-        assert_eq!(usdc_token.balance(&agent), 0);
+        assert_eq!(xlm_token.balance(&buyer), 920_0000000); // 1000 - 80
+        assert_eq!(xlm_token.balance(&agent), 0);
     }
 
     // ─── Test 5: Admin resolves dispute with refund ──────────────────────────
     // Admin calls resolve_dispute(refund_buyer=true).
-    // Buyer must receive full USDC back; agent receives nothing.
+    // Buyer must receive full XLM back; agent receives nothing.
 
     #[test]
     fn test_admin_resolves_dispute_with_refund() {
-        let (env, contract_id, usdc_address, admin, buyer, agent) = setup();
+        let (env, contract_id, token_address, admin, buyer, agent) = setup();
         let client = PasaBuyContractClient::new(&env, &contract_id);
-        let usdc_token = token::Client::new(&env, &usdc_address);
+        let xlm_token = token::Client::new(&env, &token_address);
 
         let amount: i128 = 60_0000000;
 
         let order_id = client.create_order(
             &buyer,
-            &usdc_address,
             &amount,
             &6_0000000,
             &symbol_short!("Gucci"),
@@ -174,19 +172,19 @@ mod tests {
         client.mark_shipped(&agent, &order_id);
         client.dispute(&buyer, &order_id);
 
-        let buyer_balance_before = usdc_token.balance(&buyer);
+        let buyer_balance_before = xlm_token.balance(&buyer);
 
         // Admin decides in buyer's favor
         client.resolve_dispute(&admin, &order_id, &true);
 
         // Buyer must get full amount back
         assert_eq!(
-            usdc_token.balance(&buyer) - buyer_balance_before,
+            xlm_token.balance(&buyer) - buyer_balance_before,
             amount
         );
 
         // Agent gets nothing
-        assert_eq!(usdc_token.balance(&agent), 0);
+        assert_eq!(xlm_token.balance(&agent), 0);
 
         // Order must be marked Resolved
         let order = client.get_order(&order_id);

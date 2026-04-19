@@ -1,0 +1,19 @@
+{
+  "name": "pasabuy-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^15.0.1"
+  },
+  "devDependencies": {
+    "vite": "^6.3.2",
+    "vite-plugin-node-polyfills": "^0.26.0"
+  }
+}
