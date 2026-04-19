@@ -8,7 +8,7 @@
 
 **Pasabuy** is a deeply Filipino practice — asking a friend, relative, or stranger abroad to buy something on your behalf and bring it home. It's informal, it's common, and it's risky. Money changes hands with no guarantees, no recourse, and no paper trail.
 
-PasaBuy fixes that. It's a Soroban-powered escrow dApp that locks a buyer's USDC when they post a request, assigns an agent abroad to fulfill it, and only releases payment when the buyer confirms delivery. Disputes are handled on-chain with an admin resolution path.
+PasaBuy fixes that. It's a Soroban-powered escrow dApp that locks a buyer's funds when they post a request, assigns an agent abroad to fulfill it, and only releases payment when the buyer confirms delivery. Disputes are handled on-chain with an admin resolution path.
 
 No middlemen. No trust required. Just code.
 
@@ -30,13 +30,13 @@ This informal economy is worth millions annually among OFWs and Filipino online 
 
 PasaBuy puts the escrow on Stellar.
 
-1. **Buyer posts an order** — USDC is locked in a Soroban smart contract
+1. **Buyer posts an order** — XLM is locked in a Soroban smart contract
 2. **Agent accepts** — commits to buying and shipping the item
 3. **Agent marks shipped** — buyer is notified
-4. **Buyer confirms delivery** — USDC is released to the agent
+4. **Buyer confirms delivery** — XLM is released to the agent
 5. **Dispute?** — funds freeze, admin resolves on-chain
 
-Stellar's near-zero fees and USDC stability make this practical for everyday ₱500–₱5,000 transactions that would be eaten alive by Ethereum gas costs.
+Stellar's near-zero fees make this practical for everyday ₱500–₱5,000 transactions that would be eaten alive by Ethereum gas costs.
 
 ---
 
@@ -45,9 +45,8 @@ Stellar's near-zero fees and USDC stability make this practical for everyday ₱
 | Feature | Purpose |
 |---|---|
 | Soroban smart contracts | Escrow state machine, dispute logic |
-| USDC transfers | Stable cross-border payment currency |
-| Trustlines | Buyer and agent establish USDC trustlines |
-| XLM | Transaction fees |
+| Native XLM | Escrow payment currency & transaction fees |
+| Trustlines | For custom assets (if expanded beyond XLM) |
 
 ---
 
@@ -55,11 +54,11 @@ Stellar's near-zero fees and USDC stability make this practical for everyday ₱
 
 | Function | Description |
 |---|---|
-| `initialize(admin)` | Set contract admin for dispute resolution |
-| `create_order(...)` | Buyer locks USDC, creates order |
+| `initialize(admin, token)` | Set contract admin and the token to be used for escrow |
+| `create_order(...)` | Buyer locks XLM, creates order |
 | `accept_order(agent, order_id)` | Agent commits to fulfilling the order |
 | `mark_shipped(agent, order_id)` | Agent marks item as shipped |
-| `confirm_delivery(buyer, order_id)` | Buyer confirms receipt, releases USDC |
+| `confirm_delivery(buyer, order_id)` | Buyer confirms receipt, releases XLM |
 | `dispute(buyer, order_id)` | Buyer freezes funds pending resolution |
 | `resolve_dispute(admin, order_id, refund_buyer)` | Admin sends funds to buyer or agent |
 | `get_order(order_id)` | Read order state |
@@ -147,10 +146,11 @@ stellar contract invoke \
   --source-account pasabuy-deployer \
   --network testnet \
   -- initialize \
-  --admin $(stellar keys address pasabuy-deployer)
+  --admin $(stellar keys address pasabuy-deployer) \
+  --token_id CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
 ```
 
-**Buyer creates an order (100 USDC):**
+**Buyer creates an order (100 XLM):**
 ```bash
 stellar contract invoke \
   --id <CONTRACT_ID> \
@@ -158,7 +158,6 @@ stellar contract invoke \
   --network testnet \
   -- create_order \
   --buyer <BUYER_ADDRESS> \
-  --usdc_token <USDC_CONTRACT_ADDRESS> \
   --amount 1000000000 \
   --service_fee 100000000 \
   --item_description NikeAJ1
@@ -240,7 +239,22 @@ PasaBuy/
 │   │   ├── lib.rs        # Soroban smart contract
 │   │   └── test.rs       # 5 contract tests
 │   └── Cargo.toml
+├── frontend/
+│   ├── src/            # Vite frontend logic (JS/Vanilla CSS)
+│   ├── index.html      # UI entrypoint
+│   └── package.json
 └── README.md
+```
+
+---
+
+## Run the Web App
+
+The project includes a robust Vite-based frontend connecting directly to the Soroban contract:
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ---
