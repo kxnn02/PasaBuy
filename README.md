@@ -61,6 +61,14 @@ Stellar's near-zero fees make this practical for everyday ₱500–₱5,000 tran
 
 ---
 
+## Off-Chain Communication
+
+While the escrow, fund locking, and dispute resolution happen trustlessly on-chain, **communication happens where users already are**. 
+
+The "Item Name" stored on-chain (max 9 characters) acts as a short reference code (e.g., `NikeAJ1`). Buyers and Agents use social platforms like **Facebook, Messenger, WhatsApp, or Reddit** to discuss specific details, share Amazon links, agree on sizes, and provide shipping updates. PasaBuy acts solely as the secure financial layer for these existing interactions.
+
+---
+
 ## Stellar Features Used
 
 | Feature | Purpose |
