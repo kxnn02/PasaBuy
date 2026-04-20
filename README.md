@@ -4,6 +4,27 @@
 
 ---
 
+## 🚀 Deployed Smart Contract
+
+| | |
+|---|---|
+| **Contract ID** | `CA6LHTMGCJFEI7IG3OULVX47MHZ6SZKTGYL6WYAXX6QC2TDYRUP4SSAH` |
+| **Network** | Stellar Testnet |
+| **Stellar Expert** | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CA6LHTMGCJFEI7IG3OULVX47MHZ6SZKTGYL6WYAXX6QC2TDYRUP4SSAH) |
+| **Stellar Lab** | [View on Stellar Lab](https://lab.stellar.org/r/testnet/contract/CA6LHTMGCJFEI7IG3OULVX47MHZ6SZKTGYL6WYAXX6QC2TDYRUP4SSAH) |
+
+### Screenshot of Deployed Contract
+
+![Deployed PasaBuy Contract on Stellar Expert](deployed-contract.png)
+
+---
+
+## 🌐 Live Demo
+
+**Frontend**: [https://pasa-buy.vercel.app/](https://pasa-buy.vercel.app/)
+
+---
+
 ## What is PasaBuy?
 
 **Pasabuy** is a deeply Filipino practice — asking a friend, relative, or stranger abroad to buy something on your behalf and bring it home. It's informal, it's common, and it's risky. Money changes hands with no guarantees, no recourse, and no paper trail.
@@ -135,6 +156,8 @@ stellar contract deploy \
 
 Save the returned `CONTRACT_ID`.
 
+**Currently deployed contract:** `CA6LHTMGCJFEI7IG3OULVX47MHZ6SZKTGYL6WYAXX6QC2TDYRUP4SSAH`
+
 ---
 
 ## Sample CLI Invocations
@@ -142,7 +165,7 @@ Save the returned `CONTRACT_ID`.
 **Initialize:**
 ```bash
 stellar contract invoke \
-  --id <CONTRACT_ID> \
+  --id CA6LHTMGCJFEI7IG3OULVX47MHZ6SZKTGYL6WYAXX6QC2TDYRUP4SSAH \
   --source-account pasabuy-deployer \
   --network testnet \
   -- initialize \

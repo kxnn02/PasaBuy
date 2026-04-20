@@ -2,6 +2,7 @@
 
 export const CONTRACT_ID_KEY = 'pasabuy_contract_id';
 export const RPC_URL_KEY = 'pasabuy_rpc_url';
+export const DEFAULT_CONTRACT_ID = 'CA6LHTMGCJFEI7IG3OULVX47MHZ6SZKTGYL6WYAXX6QC2TDYRUP4SSAH';
 
 export const NATIVE_XLM_SAC = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 export const TESTNET_RPC = 'https://soroban-testnet.stellar.org';

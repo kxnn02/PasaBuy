@@ -1,6 +1,6 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { signTx, getPublicKey } from './wallet.js';
-import { TESTNET_PASSPHRASE, TESTNET_RPC, CONTRACT_ID_KEY, RPC_URL_KEY } from './utils.js';
+import { TESTNET_PASSPHRASE, TESTNET_RPC, CONTRACT_ID_KEY, RPC_URL_KEY, DEFAULT_CONTRACT_ID } from './utils.js';
 
 const { rpc, TransactionBuilder, Contract, Address, nativeToScVal, scValToNative, Keypair, Account, BASE_FEE, Transaction } = StellarSdk;
 
@@ -11,7 +11,7 @@ function getRpcUrl() {
 }
 
 function getContractId() {
-  return localStorage.getItem(CONTRACT_ID_KEY) || '';
+  return localStorage.getItem(CONTRACT_ID_KEY) || DEFAULT_CONTRACT_ID;
 }
 
 function getServer() {

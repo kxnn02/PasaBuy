@@ -2,11 +2,11 @@ import './style.css';
 import { connectWallet, getPublicKey } from './wallet.js';
 import * as api from './contract.js';
 import { toast, confirmModal, setLoading, renderOrderCard, renderEmpty, renderLoading } from './ui.js';
-import { toStroops, fromStroops, shortAddr, getStatusKey, CONTRACT_ID_KEY, RPC_URL_KEY, TESTNET_RPC } from './utils.js';
+import { toStroops, fromStroops, shortAddr, getStatusKey, CONTRACT_ID_KEY, RPC_URL_KEY, TESTNET_RPC, DEFAULT_CONTRACT_ID } from './utils.js';
 
 // ═══ STATE ═══
 
-function contractId() { return localStorage.getItem(CONTRACT_ID_KEY) || ''; }
+function contractId() { return localStorage.getItem(CONTRACT_ID_KEY) || DEFAULT_CONTRACT_ID; }
 
 // ═══ STATUS BAR ═══
 
@@ -189,7 +189,7 @@ async function loadBuyerOrders() {
   renderLoading('buyer-orders');
   try {
     const count = await api.fetchOrderCount();
-    if (count === 0) { renderEmpty('buyer-orders', 'No orders yet. Post your first pasabuy!'); return; }
+    if (count === 0) { renderEmpty('buyer-orders', 'No orders yet. Post your first pasabuy!', 'How it works: 1. Create an order 2. Lock your XLM 3. An agent buys it 4. Confirm delivery to release funds.'); return; }
 
     const orders = [];
     for (let i = 1; i <= count; i++) {
@@ -198,7 +198,7 @@ async function loadBuyerOrders() {
         if (o && o.buyer === getPublicKey()) orders.push(o);
       } catch (_) {}
     }
-    if (orders.length === 0) { renderEmpty('buyer-orders', 'No orders as buyer yet.'); return; }
+    if (orders.length === 0) { renderEmpty('buyer-orders', 'No orders as buyer yet.', 'How it works: 1. Create an order 2. Lock your XLM 3. An agent buys it 4. Confirm delivery to release funds.'); return; }
     document.getElementById('buyer-orders').innerHTML = orders.reverse().map(o => renderOrderCard(o, 'buyer')).join('');
   } catch (e) {
     renderEmpty('buyer-orders', 'Failed: ' + e.message);
@@ -210,7 +210,7 @@ async function loadOpenOrders() {
   renderLoading('open-orders');
   try {
     const count = await api.fetchOrderCount();
-    if (count === 0) { renderEmpty('open-orders', 'No orders posted yet.'); return; }
+    if (count === 0) { renderEmpty('open-orders', 'No orders posted yet.', 'Wait for a buyer to post a request!'); return; }
 
     const orders = [];
     for (let i = 1; i <= count; i++) {
@@ -219,7 +219,7 @@ async function loadOpenOrders() {
         if (o && getStatusKey(o) === 'Open') orders.push(o);
       } catch (_) {}
     }
-    if (orders.length === 0) { renderEmpty('open-orders', 'No open orders right now.'); return; }
+    if (orders.length === 0) { renderEmpty('open-orders', 'No open orders right now.', 'Wait for a buyer to post a request!'); return; }
     document.getElementById('open-orders').innerHTML = orders.reverse().map(o => renderOrderCard(o, 'agent')).join('');
   } catch (e) {
     renderEmpty('open-orders', 'Failed: ' + e.message);
@@ -306,6 +306,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('config-save').addEventListener('click', saveConfig);
 
   // Create order
+  const itemNameInput = document.getElementById('item-name');
+  const itemNameCounter = document.getElementById('item-name-counter');
+  itemNameInput.addEventListener('input', () => {
+    itemNameCounter.textContent = `${itemNameInput.value.length}/9 chars`;
+  });
+  
   document.getElementById('create-btn').addEventListener('click', handleCreateOrder);
   document.getElementById('order-amount').addEventListener('input', updateFeePreview);
   document.getElementById('order-fee').addEventListener('input', updateFeePreview);

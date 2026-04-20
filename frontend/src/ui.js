@@ -104,9 +104,10 @@ export function renderOrderCard(order, role) {
     </div>`;
 }
 
-export function renderEmpty(containerId, msg) {
+export function renderEmpty(containerId, msg, subtitle = '') {
   const el = document.getElementById(containerId);
-  if (el) el.innerHTML = `<div class="empty">${msg}</div>`;
+  const subtitleHtml = subtitle ? `<div style="font-size: 0.8rem; color: var(--muted); margin-top: 8px; line-height: 1.4;">${subtitle}</div>` : '';
+  if (el) el.innerHTML = `<div class="empty">${msg}${subtitleHtml}</div>`;
 }
 
 export function renderLoading(containerId) {

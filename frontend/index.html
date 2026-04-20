@@ -54,6 +54,10 @@
 
   <!-- ═══ BUYER TAB ═══ -->
   <main>
+    <div class="trust-banner">
+      <strong>Powered by Soroban Smart Contracts:</strong> Your funds are locked in code and only released when you confirm delivery. Zero trust required.
+    </div>
+    
     <section class="tab-panel active" id="tab-buyer">
       <div class="hero">
         <h1>Post a <span class="accent">Pasabuy</span> Order</h1>
@@ -66,7 +70,10 @@
           <div class="card-tag">NEW ORDER</div>
           <h2>What do you need?</h2>
           <div class="field">
-            <label for="item-name">Item Name</label>
+            <div class="label-row">
+              <label for="item-name">Item Name</label>
+              <span class="char-counter" id="item-name-counter">0/9 chars</span>
+            </div>
             <input type="text" id="item-name" placeholder="e.g. NikeAJ1" maxlength="9"/>
             <small>Max 9 characters (stored on-chain as Symbol)</small>
           </div>
