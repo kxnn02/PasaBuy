@@ -27,7 +27,25 @@ export async function invokeContract(functionName, args = []) {
   if (!contractId) throw new Error('Contract ID not configured');
 
   const server = getServer();
-  const account = await server.getAccount(pubKey);
+  let account;
+  
+  // 1. Unfunded Account handling & Auto-fund
+  try {
+    account = await server.getAccount(pubKey);
+  } catch (e) {
+    if (e?.response?.status === 404 || (e.message && e.message.includes('not found'))) {
+      try {
+        await fetch('https://friendbot.stellar.org/?addr=' + pubKey);
+        await sleep(3000); // wait for ledger close
+        account = await server.getAccount(pubKey);
+      } catch (fundErr) {
+        throw new Error('Your account is unfunded. Please use Friendbot on the Stellar Laboratory to fund it.');
+      }
+    } else {
+      throw new Error('Network error: Could not connect to Stellar Testnet.');
+    }
+  }
+
   const contract = new Contract(contractId);
   const op = contract.call(functionName, ...args);
 
@@ -39,23 +57,38 @@ export async function invokeContract(functionName, args = []) {
     .setTimeout(30)
     .build();
 
-  // Prepare transaction (simulates and attaches resources)
+  // 2. Simulation panics
   let prepared;
   try {
     prepared = await server.prepareTransaction(tx);
   } catch (e) {
-    throw new Error('Simulation failed: ' + e.message);
+    const msg = String(e.message || e);
+    // Parse known smart contract panics
+    const knownPanics = ['invalid amount', 'order is not', 'not in accepted state', 'caller is not', 'cannot dispute'];
+    const foundPanic = knownPanics.find(p => msg.includes(p));
+    
+    if (foundPanic) throw new Error(`Smart Contract Blocked Action: ${foundPanic}`);
+    throw new Error('Simulation failed: ' + msg.substring(0, 100));
   }
 
-  // Sign via Freighter
+  // 3. User rejects signature
   const signedXdr = await signTx(prepared.toXDR(), TESTNET_PASSPHRASE);
 
-  // Parse signed transaction and submit
+  // 4. Submission & Balance errors
   const parsedTx = TransactionBuilder.fromXDR(signedXdr, TESTNET_PASSPHRASE);
-  const submitResult = await server.sendTransaction(parsedTx);
+  let submitResult;
+  try {
+    submitResult = await server.sendTransaction(parsedTx);
+  } catch (e) {
+    throw new Error('Network error during transaction submission.');
+  }
 
   if (submitResult.status === 'ERROR') {
-    throw new Error('Transaction failed: ' + JSON.stringify(submitResult.errorResult));
+    const errStr = JSON.stringify(submitResult.errorResult);
+    if (errStr.includes('op_underfunded') || errStr.includes('tx_insufficient_balance')) {
+      throw new Error('Insufficient XLM balance to complete this transaction.');
+    }
+    throw new Error('Transaction failed on-chain.');
   }
 
   // Poll for confirmation
@@ -65,6 +98,8 @@ export async function invokeContract(functionName, args = []) {
     const status = await server.getTransaction(txHash);
     if (status.status === 'SUCCESS') return txHash;
     if (status.status === 'FAILED') {
+      const errStr = JSON.stringify(status.resultXdr);
+      if (errStr.includes('underfunded')) throw new Error('Insufficient XLM balance.');
       throw new Error('Transaction failed on-chain');
     }
   }

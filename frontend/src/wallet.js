@@ -1,4 +1,4 @@
-import { isConnected, requestAccess, signTransaction } from '@stellar/freighter-api';
+import { isConnected, requestAccess, signTransaction, getNetworkDetails } from '@stellar/freighter-api';
 
 let _publicKey = null;
 
@@ -14,6 +14,12 @@ export async function connectWallet() {
 
   const accessObj = await requestAccess();
   if (accessObj.error) throw new Error(accessObj.error);
+
+  const network = await getNetworkDetails();
+  if (network && network.network !== 'TESTNET') {
+    throw new Error('Please switch your Freighter wallet to Testnet.');
+  }
+
   _publicKey = accessObj.address;
   return _publicKey;
 }
